@@ -58,7 +58,7 @@ class assignsubmission_mahara_observers {
         $maharasubmission = $DB->get_record('assignsubmission_mahara', array('submission'=>$submission->id));
 
         // Process further only if we are dealing with mahara submission that is locked.
-        if ($maharasubmission && $maharasubmission->viewstatus == assign_submission_mahara::STATUS_SUBMITTED) {
+        if ($maharasubmission && $maharasubmission->viewstatus == assign_submission_mahara::MAHARA_STATUS_LOCKED) {
             // Check if marking workflow is in place, page unlocking will be handled in
             // assignsubmission_mahara_observers::workflow_state_updated unless .
             if ($assign->get_instance()->markingworkflow) {
@@ -101,7 +101,7 @@ class assignsubmission_mahara_observers {
         $maharasubmission = $DB->get_record('assignsubmission_mahara', array('submission'=>$submission->id));
 
         // Process further only if we are dealing with mahara submission that is locked.
-        if ($maharasubmission && $maharasubmission->viewstatus == assign_submission_mahara::STATUS_SUBMITTED) {
+        if ($maharasubmission && $maharasubmission->viewstatus == assign_submission_mahara::MAHARA_STATUS_LOCKED) {
             // Check marking workflow state, only unlock page if marks are released.
             if ($eventdata['other']['newstate'] !== ASSIGN_MARKING_WORKFLOW_STATE_RELEASED) {
                 return;
@@ -129,7 +129,7 @@ class assignsubmission_mahara_observers {
         if ($maharasubmissionplugin->get_error()) {
             $this->set_error($maharasubmissionplugin->get_error());
         } else {
-            $maharasubmissionplugin->set_mahara_submission_status($maharasubmission->submission, assign_submission_mahara::STATUS_RELEASED);
+            $maharasubmissionplugin->set_mahara_submission_status($maharasubmission->submission, assign_submission_mahara::MAHARA_STATUS_RELEASED);
         }
     }
 }

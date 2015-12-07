@@ -25,6 +25,7 @@
  */
 
 defined('MOODLE_INTERNAL') || die();
+require_once ($CFG->dirroot . '/mod/assign/submission/mahara/lib.php');
 
 /**
  * library class for Mahara submission plugin extending submission plugin base class
@@ -35,15 +36,17 @@ defined('MOODLE_INTERNAL') || die();
  */
 class assign_submission_mahara extends assign_submission_plugin {
 
-    // We've selected the page/collection, but we haven't locked it or issued a special access token
-    const STATUS_SELECTED = 'selected';
+    // These constants indicate our knowledge of the page's status *in Mahara*.
+    // We have not changed the page's status on the Mahara side.
+    const MAHARA_STATUS_NORMAL = 'selected';
 
-    // We've locked the page in Mahara and issued an access token
-    const STATUS_SUBMITTED = 'submitted';
+    // We've locked the page in Mahara
+    // (And, if it's a non-upgraded Mahara, we've been issued an access token)
+    const MAHARA_STATUS_LOCKED = 'submitted';
 
-    // We locked and then unlocked the page in Mahara, which means we probably still have a valid
-    // access token for it
-    const STATUS_RELEASED = 'released';
+    // We've locked the page in Mahara, and subsequently unlocked it.
+    // (If we're dealing with a non-upgraded Mahara, the access token probably still exists)
+    const MAHARA_STATUS_RELEASED = 'released';
 
     /**
      * Get the name of the Mahara submission plugin
@@ -231,7 +234,7 @@ class assign_submission_mahara extends assign_submission_plugin {
                     get_string('viewsby', 'assignsubmission_mahara', $views['displayname'])
                 );
                 foreach ($views['data'] as $view) {
-                    $viewurl = $this->get_view_url($view['url']);
+                    $viewurl = $this->mnetify_url($view['url']);
                     $anchor = $this->get_preview_url($view['title'], $viewurl, strip_tags($view['description']));
                     $mform->addElement('radio', 'viewid', '', $anchor, 'v' . $view['id']);
                 }
@@ -241,7 +244,7 @@ class assign_submission_mahara extends assign_submission_plugin {
                     get_string('collectionsby', 'assignsubmission_mahara', $views['displayname'])
                 );
                 foreach ($views['collections']['data'] as $coll) {
-                    $collurl = $this->get_view_url($coll['url']);
+                    $collurl = $this->mnetify_url($coll['url']);
                     $anchor = $this->get_preview_url($coll['name'], $collurl, strip_tags($coll['description']));
                     $mform->addElement('radio', 'viewid', '', $anchor, 'c' . $coll['id']);
                 }
@@ -321,7 +324,7 @@ class assign_submission_mahara extends assign_submission_plugin {
      * @param $viewownermoodleid ID of the view ower's Moodle user record
      * @return mixed
      */
-    public function mnet_submit_view($submission, $viewid, $iscollection, $viewownermoodleid = null) {
+    public function mnet_submit_view($submission, $viewid, $iscollection, $viewownermoodleid = null, $lock = true) {
         global $USER, $DB;
 
         // Verify that it's not already submitted to another Mahara assignment in this Moodle site.
@@ -333,7 +336,7 @@ class assign_submission_mahara extends assign_submission_plugin {
                         array(
                                 $viewid,
                                 ($iscollection ? 1 : 0),
-                                self::STATUS_SUBMITTED,
+                                self::MAHARA_STATUS_LOCKED,
                                 $submission->id
                         )
                 )
@@ -347,7 +350,17 @@ class assign_submission_mahara extends assign_submission_plugin {
         else {
             $username = $DB->get_field('user', 'username', array('id'=>$viewownermoodleid));
         }
-        return $this->mnet_send_request('submit_view_for_assessment', array($username, $viewid, $iscollection));
+
+        // Check whether we're set up to use mnet-based access control or not.
+        if (assignsubmission_mahara_is_mnet_acl_enabled($this->get_config('mnethostid'))) {
+            // Request API level 2 from Mahara (no tokens)
+            $apilevel = 'moodle-assignsubmission-mahara:2';
+        }
+        else {
+            $apilevel = 'moodle-assignsubmission-mahara:1';
+        }
+
+        return $this->mnet_send_request('submit_view_for_assessment', array($username, $viewid, $iscollection, $apilevel, $lock));
     }
 
     /**
@@ -479,7 +492,7 @@ class assign_submission_mahara extends assign_submission_plugin {
                 $maharasubmission->viewurl = $url;
                 $maharasubmission->viewtitle = $title;
                 $maharasubmission->iscollection = (int) $iscollection;
-                $maharasubmission->viewstatus = self::STATUS_SELECTED;
+                $maharasubmission->viewstatus = self::MAHARA_STATUS_NORMAL;
                 return $DB->update_record('assignsubmission_mahara', $maharasubmission);
             } else {
                 $maharasubmission = new stdClass();
@@ -487,7 +500,7 @@ class assign_submission_mahara extends assign_submission_plugin {
                 $maharasubmission->viewurl = $url;
                 $maharasubmission->viewtitle = $title;
                 $maharasubmission->iscollection = (int) $iscollection;
-                $maharasubmission->viewstatus = self::STATUS_SELECTED;
+                $maharasubmission->viewstatus = self::MAHARA_STATUS_NORMAL;
 
                 $maharasubmission->submission = $submission->id;
                 $maharasubmission->assignment = $this->assignment->get_instance()->id;
@@ -500,7 +513,7 @@ class assign_submission_mahara extends assign_submission_plugin {
             if ($data->viewid === null) {
                 if ($maharasubmission) {
                     // Unlock the previously selected page
-                    if ($maharasubmission->viewstatus == self::STATUS_SUBMITTED) {
+                    if ($maharasubmission->viewstatus == self::MAHARA_STATUS_LOCKED) {
                         $response = $this->mnet_release_submitted_view($maharasubmission->viewid, array(), $maharasubmission->iscollection);
                         if ($response === false) {
                             throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
@@ -515,19 +528,16 @@ class assign_submission_mahara extends assign_submission_plugin {
             }
 
             // Lock submission on mahara side.
-            if (!$response = $this->mnet_submit_view($submission, $data->viewid, $iscollection)) {
+            if (!$response = $this->mnet_submit_view($submission, $data->viewid, $iscollection, null, $this->get_config('lock'))) {
                 throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
             }
 
-            // If we're not locking user pages, then immediately release the page. This will leave it unlocked,
-            // but leave the access code in place.
-            // TODO: Replace this hack with something more robust. It's an oversight and a security hole, that the
-            // access code remains in place in Mahara when you release the page via XML-RPC.
-            if (!$this->get_config('lock')) {
-                $this->mnet_release_submitted_view($data->viewid, array(), $iscollection);
-                $status = self::STATUS_RELEASED;
-            } else {
-                $status = self::STATUS_SUBMITTED;
+            // Update our record of the Mahara page's status
+            if ($this->get_config('lock')) {
+                $status = self::MAHARA_STATUS_LOCKED;
+            }
+            else {
+                $status = $this->lock_unlock_workaround($data->viewid, $iscollection, $response);
             }
 
 
@@ -569,7 +579,7 @@ class assign_submission_mahara extends assign_submission_plugin {
 
             if ($maharasubmission) {
                 // If we are updating previous submission, release previous submission first (if it's locked).
-                if ($maharasubmission->viewid != $data->viewid && $maharasubmission->viewstatus == self::STATUS_SUBMITTED) {
+                if ($maharasubmission->viewid != $data->viewid && $maharasubmission->viewstatus == self::MAHARA_STATUS_LOCKED) {
                     if ($this->mnet_release_submitted_view($maharasubmission->viewid, array(), $maharasubmission->iscollection) === false) {
                         throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
                     }
@@ -645,17 +655,18 @@ class assign_submission_mahara extends assign_submission_plugin {
 
         $maharasubmission = $this->get_mahara_submission($submission->id);
         // Lock view on Mahara side as it has been submitted for assessment.
-        if (!$response = $this->mnet_submit_view($submission, $maharasubmission->viewid, $maharasubmission->iscollection)) {
+        $response = $this->mnet_submit_view($submission, $maharasubmission->viewid, $maharasubmission->iscollection, null, $this->get_config('lock'));
+        if (!$response || !is_array($response)) {
             throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
         }
         $maharasubmission->viewurl = $response['url'];
-        $maharasubmission->viewstatus = self::STATUS_SUBMITTED;
 
-        if (!$this->get_config('lock')) {
-            if ($this->mnet_release_submitted_view($maharasubmission->viewid, array(), $maharasubmission->iscollection) === false) {
-                throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
-            }
-            $maharasubmission->viewstatus = self::STATUS_RELEASED;
+        // Update our record of the page's status
+        if ($this->get_config('lock')) {
+            $maharasubmission->viewstatus = self::MAHARA_STATUS_LOCKED;
+        }
+        else {
+            $maharasubmission->viewstatus = $this->lock_unlock_workaround($maharasubmission, $response);
         }
 
         $DB->update_record('assignsubmission_mahara', $maharasubmission);
@@ -680,7 +691,7 @@ class assign_submission_mahara extends assign_submission_plugin {
                 !$this->get_config('lock')
                 || !$maharasubmission
                 || !$maharasubmission->viewid
-                || $maharasubmission->viewstatus == self::STATUS_SUBMITTED
+                || $maharasubmission->viewstatus == self::MAHARA_STATUS_LOCKED
         ) {
             return;
         }
@@ -690,7 +701,7 @@ class assign_submission_mahara extends assign_submission_plugin {
             throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
         }
         $maharasubmission->viewurl = $response['url'];
-        $maharasubmission->viewstatus = self::STATUS_SUBMITTED;
+        $maharasubmission->viewstatus = self::MAHARA_STATUS_LOCKED;
         $DB->update_record('assignsubmission_mahara', $maharasubmission);
     }
 
@@ -713,7 +724,7 @@ class assign_submission_mahara extends assign_submission_plugin {
 
         // If no page is selected, then we don't need to do anything special here.
         // If the page isn't locked, we don't need to do anything special here.
-        if (!$maharasubmission || !$maharasubmission->viewid || $maharasubmission->viewstatus !== self::STATUS_SUBMITTED) {
+        if (!$maharasubmission || !$maharasubmission->viewid || $maharasubmission->viewstatus !== self::MAHARA_STATUS_LOCKED) {
             return;
         }
 
@@ -721,7 +732,7 @@ class assign_submission_mahara extends assign_submission_plugin {
         if ($this->mnet_release_submitted_view($maharasubmission->viewid, array(), $maharasubmission->iscollection) === false) {
             throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
         }
-        $this->set_mahara_submission_status($maharasubmission->submission, self::STATUS_RELEASED);
+        $this->set_mahara_submission_status($maharasubmission->submission, self::MAHARA_STATUS_RELEASED);
     }
 
     /**
@@ -742,12 +753,12 @@ class assign_submission_mahara extends assign_submission_plugin {
         }
 
         $maharasubmission = $this->get_mahara_submission($submission->id);
-        if ($maharasubmission->viewstatus === self::STATUS_SUBMITTED) {
+        if ($maharasubmission->viewstatus === self::MAHARA_STATUS_LOCKED) {
             // Unlock view on Mahara side as it has been reverted to draft.
             if ($this->mnet_release_submitted_view($maharasubmission->viewid, array(), $maharasubmission->iscollection) === false) {
                 throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
             }
-            $this->set_mahara_submission_status($submission->id, self::STATUS_RELEASED);
+            $this->set_mahara_submission_status($submission->id, self::MAHARA_STATUS_RELEASED);
         }
     }
 
@@ -763,19 +774,19 @@ class assign_submission_mahara extends assign_submission_plugin {
     }
 
     /**
-     * Get view URL
+     * Turn a URL into an Mnet roaming url that will do seamless SSO
      *
-     * @param stdClass $maharasubmission assignsubmission_mahara record
+     * @param $url
      * @return stdClass $url Moodle URL object
      */
-    public function get_view_url($viewurl) {
+    public function mnetify_url($url) {
         global $DB;
         $remotehost = $DB->get_record('mnet_host', array('id'=>$this->get_config('mnethostid')));
-        $url = new moodle_url('/auth/mnet/jump.php', array(
+        $mneturl = new moodle_url('/auth/mnet/jump.php', array(
             'hostid' => $remotehost->id,
-            'wantsurl' => $viewurl,
+            'wantsurl' => $url,
         ));
-        return $url;
+        return $mneturl;
     }
 
     /**
@@ -802,7 +813,8 @@ class assign_submission_mahara extends assign_submission_plugin {
     }
 
     /**
-     * Display the view of submission.
+     * Display the view of the submission (as seen in the gradebook, in the student's view,
+     * and in the teacher's view.
      *
      * @global stdClass $DB
      * @global stdClass $USER
@@ -828,10 +840,27 @@ class assign_submission_mahara extends assign_submission_plugin {
             if ($submission->attemptnumber < $lastattempt) {
                 $result .= get_string('previousattemptsnotvisible', 'assignsubmission_mahara');
             } else {
-                // Either the page is viewed by the author or access code has been issued
-                $remotehost = $DB->get_record('mnet_host', array('id'=>$this->get_config('mnethostid')));
-                $url = $this->get_view_url($maharasubmission->viewurl);
-                return $this->get_preview_url($maharasubmission->viewtitle, $url);
+
+                if (assignsubmission_mahara_is_mnet_acl_enabled($this->get_config('mnethostid'))) {
+                    // Mahara can use an Mnet callback to verify access control.
+                    // Add params needed by that callback.
+                    $url = $maharasubmission->viewurl . '&assignment=' . $maharasubmission->assignment;
+                    if ($maharasubmission->iscollection) {
+                        $url .= '&mnetcollid=' . $maharasubmission->viewid;
+                    }
+                    else {
+                        $url .= '&mnetviewid=' . $maharasubmission->viewid;
+                    }
+                }
+                else {
+                    // Mahara cannot use an MNet callback to verify access control.
+                    // If the viewer is the page owner, then no problem. If it's the teacher,
+                    // this URL will (hopefully) have an active access token on it!
+                    $url = $maharasubmission->viewurl;
+                }
+
+                $mneturl = $this->mnetify_url($url);
+                return $this->get_preview_url($maharasubmission->viewtitle, $mneturl);
             }
         }
         return $result;
@@ -897,7 +926,7 @@ class assign_submission_mahara extends assign_submission_plugin {
 
         $url = new moodle_url($maharadata['url']);
         if ($url->get_param('mt')) {
-            $maharasubmission->viewstatus = self::STATUS_SUBMITTED;
+            $maharasubmission->viewstatus = self::MAHARA_STATUS_LOCKED;
         }
 
         $maharasubmission->submission = $submission->id;
@@ -942,7 +971,7 @@ class assign_submission_mahara extends assign_submission_plugin {
                 'assignsubmission_mahara',
                 array(
                         'assignment' => $this->assignment->get_instance()->id,
-                        'viewstatus' => self::STATUS_SUBMITTED
+                        'viewstatus' => self::MAHARA_STATUS_LOCKED
                 )
         );
         foreach ($records as $record) {
@@ -969,11 +998,11 @@ class assign_submission_mahara extends assign_submission_plugin {
         // Unlock the previous submission's page if the assignment is reopened. That way
         // the student can make improvements and then resubmit.
         $maharasubmission = $this->get_mahara_submission($oldsubmission->id);
-        if ($maharasubmission && $maharasubmission->viewstatus == self::STATUS_SUBMITTED) {
+        if ($maharasubmission && $maharasubmission->viewstatus == self::MAHARA_STATUS_LOCKED) {
             if ($this->mnet_release_submitted_view($maharasubmission->viewid, array(), $maharasubmission->iscollection) === false) {
                 throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
             }
-            $this->set_mahara_submission_status($maharasubmission->submission, self::STATUS_RELEASED);
+            $this->set_mahara_submission_status($maharasubmission->submission, self::MAHARA_STATUS_RELEASED);
         }
     }
 
@@ -987,9 +1016,47 @@ class assign_submission_mahara extends assign_submission_plugin {
      */
     public function set_mahara_submission_status($submissionid, $status) {
         global $DB;
-        if (!($status === self::STATUS_SELECTED || $status === self::STATUS_SUBMITTED || $status === self::STATUS_RELEASED)) {
+        if (!($status === self::MAHARA_STATUS_NORMAL || $status === self::MAHARA_STATUS_LOCKED || $status === self::MAHARA_STATUS_RELEASED)) {
             throw new moodle_exception('errorinvalidstatus', 'assignsubmission_mahara');
         }
         return $DB->set_field('assignsubmission_mahara', 'viewstatus', $status, array('submission' => $submissionid));
+    }
+
+
+    /**
+     * A workaround method for dealing with an older Mahara installation that cannot
+     *
+     * Older Mahara sites rely on an access token for access control, even for pages that are meant
+     * to be unlocked. In this case we "never lock" the page by actually locking it and immediately
+     * unlocking it. The access key remains active after unlocking due to a bug in Mahara, and the
+     * teacher can continue to use that unless the student submits the page to another assignment.
+     *
+     * @param int $viewid The view/collection id
+     * @param boolean $iscollection Whether it's a view or collection
+     * @param array $response The response data from the MNet submission request
+     * @throws moodle_exception
+     * @return int What the submission's mahara page status should be now
+     */
+    /***
+     *
+     * @param unknown $response
+     * @throws moodle_exception
+     * @return string
+     */
+    public function lock_unlock_workaround($viewid, $iscollection, $response) {
+
+        $apiversion = (array_key_exists('apilevel', $response)) ? $response['apilevel'] : 'moodle-assignsubmission-mahara:1';
+        list($apiname, $apinumber) = explode(':', $apiversion, 2);
+
+        if ($apiname === 'moodle-assignsubmission-mahara' && $apinumber >= 2) {
+            return self::MAHARA_STATUS_NORMAL;
+        }
+        else {
+            // Older or unknown version of API. Unlock the page.
+            if ($this->mnet_release_submitted_view($viewid, array(), (bool) $iscollection)) {
+                throw new moodle_exception('errormnetrequest', 'assignsubmission_mahara', '', $this->get_error());
+            }
+            return self::MAHARA_STATUS_RELEASED;
+        }
     }
 }

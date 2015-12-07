@@ -65,5 +65,48 @@ function assignsubmission_mahara_sitelist() {
                  h.name";
 
     return $DB->get_records_sql_menu($sql, array('mnet_localhost_id'=>$CFG->mnet_localhost_id));
+}
 
+/**
+ * Determines whether or not the specified mnethost is publishing the function needed to
+ * do Mahara page permissions via MNet.
+ * TODO: Update this function if MDL-52172 gets merged
+ *
+ * @param int $mnethostid
+ * @return boolean
+ */
+function assignsubmission_mahara_is_mnet_acl_enabled($mnethostid) {
+    global $DB, $CFG;
+    $sql = '
+            SELECT r.xmlrpcpath
+            FROM
+                {mnet_host} h
+                INNER JOIN {mnet_host2service} h2s
+                    ON h.id = h2s.hostid
+                INNER JOIN {mnet_service} s
+                    ON s.id = h2s.serviceid
+                    AND s.name=\'assign_submission_mahara\'
+                INNER JOIN {mnet_service2rpc} s2r
+                    ON s.id = s2r.serviceid
+                INNER JOIN {mnet_rpc} r
+                    on r.id = s2r.rpcid
+                    AND r.functionname = \'can_view_view\'
+                    AND r.pluginname = \'mahara\'
+                    AND r.plugintype = \'local\'
+            WHERE
+                h.id = :mnethostid
+                AND h.deleted = 0
+                AND h2s.publish = 1
+                AND r.enabled = 1
+    ';
+
+    $ret = $DB->record_exists_sql($sql, array('mnethostid' => $mnethostid));
+    // Seemed like a good idea, but it fills up the logs too much.
+//     if (!$ret) {
+//         debugging('You should install the Mahara local plugin and publish its service, for better'
+//                 .' interoperability with the Mahara assignment submission plugin.',
+//                 DEBUG_DEVELOPER
+//         );
+//     }
+    return $ret;
 }

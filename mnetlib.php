@@ -26,6 +26,42 @@
  */
 
 class mnetservice_assign_submission_mahara {
+
     public function donothing() {
     }
+
+    /**
+     * Determines whether the specified Moodle user should be able to view the specified
+     * Mahara page (or collection), because it has been submitted to a Moodle assignment
+     * and the user is grading it.
+     *
+     * // TODO: Currently, this function allows anyone with gradebook access in the
+     * assignment, to view the page once it has been selected by the student. We may
+     * want to change this to be more selective. For instance, only granting view access
+     * if the submission record in mdl_assign_submission is in ASSIGN_SUBMISSION_STATUS_SUBMITTED
+     *
+     * @param int $viewid
+     * @param string $username
+     * @param int $assignment
+     * @param bool $iscollection
+     * @return boolean
+     */
+    public function can_view_view($viewid, $username, $assignment, $iscollection) {
+        global $DB;
+
+        $submissionid = $DB->get_field("assignsubmission_mahara",
+                                       "submission",
+                                        array("viewid"       => $viewid,
+                                              "assignment"   => $assignment,
+                                              "iscollection" => $iscollection));
+        if (!$submissionid) {
+            return false;
+        }
+
+        $userid = $DB->get_field("assign_submission", "userid", array("id" => $submissionid));
+        $context = context_module::instance($assignment);
+        $user = $DB->get_record("user", array("username" => $username));
+        return $user->id == $userid || has_any_capability(array('mod/assign:grade', 'mod/assign:viewgrades'), $context, $user);
+    }
+
 }

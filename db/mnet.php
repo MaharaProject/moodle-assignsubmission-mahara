@@ -26,11 +26,13 @@ defined('MOODLE_INTERNAL') || die();
 
 $publishes = array(
     'assign_submission_mahara' => array(
-        'apiversion' => 1,
+        'apiversion' => 2,
         'classname'  => 'mnetservice_assign_submission_mahara',
         'filename'   => 'mnetlib.php',
         'methods'    => array(
             'donothing',
+            // TODO: Uncomment if MDL-52172 gets merged
+//            'can_view_view',
         ),
     ),
 );

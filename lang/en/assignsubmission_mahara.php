@@ -23,7 +23,7 @@
  */
 
 $string['assign_submission_mahara_name'] = 'Assign Submission Mahara services';
-$string['assign_submission_mahara_description'] = 'Mahara functions used in Mahara portfolio Assign Submission plugin.<br />Publishing this service on a Moodle site has no effect. Subscribe to this service if you want to be able to use assignments with {$a}.<br />';
+$string['assign_submission_mahara_description'] = 'Mahara functions used in Mahara portfolio Assign Submission plugin.<br />Subscribe AND publish to this service if you want to be able to use assignments with {$a}.<br />';
 $string['collectionsby'] = 'Collections by {$a}';
 $string['defaultlockpages'] = 'Default "{$a}"';
 $string['defaultlockpages_help'] = 'Default setting to use for the "{$a}" setting in new Mahara assignments.';

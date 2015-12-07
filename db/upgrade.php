@@ -69,8 +69,8 @@ function xmldb_assignsubmission_mahara_upgrade($oldversion) {
                 $dbman->add_field($table, $field);
             }
 
-            $DB->execute("update {assignsubmission_mahara} set viewstatus='".assign_submission_mahara::STATUS_SELECTED."' where viewaccesskey is null");
-            $DB->execute("update {assignsubmission_mahara} set viewstatus='".assign_submission_mahara::STATUS_SUBMITTED."' where viewaccesskey is not null");
+            $DB->execute("update {assignsubmission_mahara} set viewstatus='".assign_submission_mahara::MAHARA_STATUS_NORMAL."' where viewaccesskey is null");
+            $DB->execute("update {assignsubmission_mahara} set viewstatus='".assign_submission_mahara::MAHARA_STATUS_LOCKED."' where viewaccesskey is not null");
 
             // Define field viewaccesskey to be dropped from assignsubmission_mahara.
             $table = new xmldb_table('assignsubmission_mahara');
@@ -140,7 +140,7 @@ function xmldb_assignsubmission_mahara_upgrade($oldversion) {
                 $todb->viewtitle = $page->title;
                 $todb->iscollection = 0;
                 $status = $submissiondata->status;
-                if ($status == assign_submission_mahara::STATUS_RELEASED || $status == assign_submission_mahara::STATUS_SELECTED || $status == assign_submission_mahara::STATUS_SUBMITTED) {
+                if ($status == assign_submission_mahara::MAHARA_STATUS_RELEASED || $status == assign_submission_mahara::MAHARA_STATUS_NORMAL || $status == assign_submission_mahara::MAHARA_STATUS_LOCKED) {
                     $todb->status = $status;
                 }
                 else {
@@ -177,7 +177,7 @@ function xmldb_assignsubmission_mahara_upgrade($oldversion) {
             $pluginman = core_plugin_manager::instance();
             $uninstallurl = $pluginman->get_uninstall_url('assignfeedback_mahara', 'overview');
             $uninstall = html_writer::link($uninstallurl, 'uninstall');
-            echo html_writer::div("It seems you are using assignfeedback_mahara plugin. "
+            echo html_writer::div("It seems you are using the assignfeedback_mahara plugin. "
                     . "This plugin is no longer required for Mahara pages unlocking and conflicting "
                     . "with this upgrade. Please " . $uninstall . " assignfeedback_mahara "
                     . "plugin first, remove its installation directory, and then proceed "
