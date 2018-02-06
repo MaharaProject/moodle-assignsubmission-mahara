@@ -745,6 +745,10 @@ class assign_submission_mahara extends assign_submission_plugin {
         }
 
         $maharasubmission = $this->get_mahara_submission($submission->id);
+        if (!$maharasubmission) {
+            return;
+        }
+
         if ($maharasubmission->viewstatus === self::STATUS_SUBMITTED) {
             // Unlock view on Mahara side as it has been reverted to draft.
             if ($this->mnet_release_submitted_view($maharasubmission->viewid, array(), $maharasubmission->iscollection) === false) {
