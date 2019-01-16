@@ -59,7 +59,6 @@ $string['yesunlock'] = 'Yes, but unlock after grading';
 $string['viewsby'] = 'Pages by {$a}';
 
 $string['privacy:metadata:assignsubmission_mahara'] = 'Stores information about Mahara pages and collections submitted to assignments.';
-$string['privacy:metadata:auth_mnet'] = 'The Mahara Assign submission uses mnet to connect users to Mahara.';
 $string['privacy:metadata:assignment'] = 'The id of the Assignment';
 $string['privacy:metadata:submission'] = 'The id of the submission';
 $string['privacy:metadata:viewid'] = 'The id of the Mahara page or collection';

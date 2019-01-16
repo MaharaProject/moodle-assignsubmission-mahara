@@ -50,12 +50,6 @@ class provider implements metadataprovider, \mod_assign\privacy\assignsubmission
      */
     public static function get_metadata(collection $collection) : collection {
 
-        $collection->add_subsystem_link(
-            'auth_mnet',
-            [],
-            'privacy:metadata:auth_mnet'
-        );
-
         $collection->add_database_table('assignsubmission_mahara', [
             'assignment' => 'privacy:metadata:assignment',
             'submission' => 'privacy:metadata:submission',
