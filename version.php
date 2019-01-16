@@ -24,7 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2018053100;
+$plugin->version   = 2019011700;
 $plugin->requires  = 2017111300; // This version requires Moodle 3.4
 $plugin->component = 'assignsubmission_mahara';
 $plugin->maturity  = MATURITY_STABLE;
