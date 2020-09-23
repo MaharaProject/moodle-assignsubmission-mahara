@@ -102,12 +102,25 @@ class assign_submission_mahara extends assign_submission_plugin {
             $locksettings = array(
                 ASSIGNSUBMISSION_MAHARA_SETTING_DONTLOCK => new lang_string('no'),
                 ASSIGNSUBMISSION_MAHARA_SETTING_KEEPLOCKED => new lang_string('yeskeeplocked', 'assignsubmission_mahara'),
-                ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCK => new lang_string('yesunlock', 'assignsubmission_mahara')
+                ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCK => new lang_string('yesunlock', 'assignsubmission_mahara'),
+                ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCKDATE => new lang_string('yesunlockdate', 'assignsubmission_mahara')
             );
             $mform->addElement('select', 'assignsubmission_mahara_lockpages', get_string('lockpages', 'assignsubmission_mahara'), $locksettings);
             $mform->setDefault('assignsubmission_mahara_lockpages', $locked);
             $mform->addHelpButton('assignsubmission_mahara_lockpages', 'lockpages', 'assignsubmission_mahara');
             $mform->disabledIf('assignsubmission_mahara_lockpages', 'assignsubmission_mahara_enabled', 'notchecked');
+
+            $name = get_string('unlockdate', 'assignsubmission_mahara');
+            $mform->addElement('date_time_selector', 'assignsubmission_mahara_unlockdate', $name);
+            $mform->addHelpButton('assignsubmission_mahara_unlockdate', 'unlockdate', 'assignsubmission_mahara');
+            $mform->hideIf('assignsubmission_mahara_unlockdate', 'assignsubmission_mahara_lockpages', 'neq', ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCKDATE);
+            $unlockdate = $this->get_config('unlockdate');
+            if ($unlockdate === false) {
+                // No setting for this instance, so use the sitewide default.
+                $unlockdate = ((int) get_config('assignsubmission_mahara', 'unlockdate')) + time();
+            }
+            $mform->setDefault('assignsubmission_mahara_unlockdate', $unlockdate);
+
         } else {
             // No hosts found.
             $mform->addElement('static', 'assignsubmission_mahara_mnethostid', get_string('site', 'assignsubmission_mahara'), get_string('nomaharahostsfound', 'assignsubmission_mahara'));
@@ -134,6 +147,10 @@ class assign_submission_mahara extends assign_submission_plugin {
 
         $this->set_config('mnethostid', $hostid);
         $this->set_config('lock', $data->assignsubmission_mahara_lockpages);
+
+        if (isset($data->assignsubmission_mahara_unlockdate)) {
+            $this->set_config('unlockdate', $data->assignsubmission_mahara_unlockdate);
+        }
 
         return true;
     }
@@ -357,11 +374,15 @@ class assign_submission_mahara extends assign_submission_plugin {
      * @param int $viewid View or Collection ID
      * @param array $viewoutcomes Outcomes data
      * @param boolean $iscollection Whether the $viewid is a view or a collection
+     * @param string $username Username
      * @return mixed
      */
-    public function mnet_release_submitted_view($viewid, $viewoutcomes, $iscollection = false) {
+    public function mnet_release_submitted_view($viewid, $viewoutcomes, $iscollection = false, $username = null) {
         global $USER;
-        return $this->mnet_send_request('release_submitted_view', array($viewid, $viewoutcomes, $USER->username, $iscollection));
+        if ($username == null) {
+            $username = $USER->username;
+        }
+        return $this->mnet_send_request('release_submitted_view', array($viewid, $viewoutcomes, $username, $iscollection));
     }
 
     /**
