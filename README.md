@@ -4,6 +4,14 @@ moodle-assignsubmission_mahara
 Mahara assignment submission plugin for Moodle 2.7 through 3.1 (or higher!).
 - https://github.com/MaharaProject/moodle-assignsubmission_mahara
 
+-----------
+Please note - this plugin is in the process of being replaced by:
+https://github.com/catalyst/assignsubmission-maharaws
+
+Any improvements/features must land in the new assignsubmission-maharaws plugin "first" and then can be backported to this older plugin on request.
+
+------------
+
 This plugin adds Mahara page submission functionality to assignments in
 Moodle.  The plugin works with the new "mod/assign" type introduced in 2.3.
 It requires at least one Mahara site linked to Moodle via MNet.
