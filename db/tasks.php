@@ -15,17 +15,24 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * This file contains the version information for Mahara submission plugin
- *
- * @package    assignsubmission_mahara
- * @copyright  2012 Lancaster University
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * Task definition for assignsubmission_mahara.
+ * @package   assignsubmission_mahara
+ * @copyright 2020 onwards Catalyst IT {@link http://www.catalyst-eu.net/}
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @author    Jackson D'souza (jackson.dsouza@catalyst-eu.net)
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2019011701;
-$plugin->requires  = 2017111300; // This version requires Moodle 3.4
-$plugin->component = 'assignsubmission_mahara';
-$plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.3';
+$tasks = array(
+    array(
+        'classname' => '\assignsubmission_mahara\task\unlockmaharasubmissions',
+        'blocking' => 0,
+        'minute' => '5',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+        'disabled' => 0
+    )
+);

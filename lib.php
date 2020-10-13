@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 define('ASSIGNSUBMISSION_MAHARA_SETTING_DONTLOCK', 0);
 define('ASSIGNSUBMISSION_MAHARA_SETTING_KEEPLOCKED', 1);
 define('ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCK', 2);
+define('ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCKDATE', 3);
 
 /**
  * Get the list of MNet hosts that we are allowed to retrieve Mahara pages from.

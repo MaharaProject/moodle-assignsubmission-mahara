@@ -67,6 +67,15 @@ $settings->add(
         ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCK,
         array(ASSIGNSUBMISSION_MAHARA_SETTING_DONTLOCK => new lang_string('no'),
                 ASSIGNSUBMISSION_MAHARA_SETTING_KEEPLOCKED => new lang_string('yeskeeplocked', 'assignsubmission_mahara'),
-                ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCK => new lang_string('yesunlock', 'assignsubmission_mahara'))
+                ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCK => new lang_string('yesunlock', 'assignsubmission_mahara'),
+                ASSIGNSUBMISSION_MAHARA_SETTING_UNLOCKDATE => new lang_string('yesunlockdate', 'assignsubmission_mahara'))
     )
 );
+
+$name = new lang_string('unlockdate', 'assignsubmission_mahara');
+$description = new lang_string('unlockdate_help', 'assignsubmission_mahara');
+$setting = new admin_setting_configduration('assignsubmission_mahara/unlockdate',
+                                                $name,
+                                                $description,
+                                                1209600);
+$settings->add($setting);
